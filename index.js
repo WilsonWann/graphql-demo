@@ -51,6 +51,22 @@ const typeDefs = gql`
         post(id: ID!): Post
     }
 
+    input UpdateMyInfoInput {
+        name: String
+        age: Int
+    }
+
+    input AddPostInput {
+        title: String!
+        body: String
+    }
+
+    type Mutation {
+        updateMyInfo(input: UpdateMyInfoInput!): User
+        addFriend(userId: ID!): User
+        addPost(input: AddPostInput!): Post
+        likePost(postId: ID!): Post
+    }
 `;
 
 // Mock Data & Field Resolver
@@ -107,6 +123,19 @@ const filterUsersByUserIds = userIds => users.filter(user => userIds.includes(us
 const findUserByUserId = userId => users.find(user => user.id === +userId);
 const findUserByName = name => users.find(user => user.name === name);
 const findPostByPostId = postId => posts.find(post => post.id === +postId);
+const updateUserInfo = (userId, data) => Object.assign(findUserByUserId(userId), data);
+
+const addPost = ({ authorId, title, body }) =>
+(posts[posts.length] = {
+    id: posts[posts.length - 1].id + 1,
+    authorId,
+    title,
+    body,
+    likeGiverIds: [],
+    createdAt: new Date().toISOString()
+});
+
+const updatePost = (postId, data) => Object.assign(findPostByPostId(postId), data);
 
 // resolver
 const resolvers = {
@@ -125,6 +154,49 @@ const resolvers = {
     Post: {
         author: (parent, args, context) => findUserByUserId(parent.authorId),
         likeGivers: (parent, args, context) => filterUsersByUserIds(parent.likeGiverIds)
+    },
+    Mutation: {
+        updateMyInfo: (parent, { input }, context) => {
+            // 過濾空值
+            const data = ["name", "age"].reduce(
+                (obj, key) => (input[key] ? { ...obj, [key]: input[key] } : obj),
+                {}
+            );
+
+            return updateUserInfo(meId, data);
+        },
+        addFriend: (parent, { userId }, context) => {
+            const me = findUserByUserId(meId);
+            if (me.friendIds.include(userId))
+                throw new Error(`User ${userId} Already Friend.`);
+
+            const friend = findUserByUserId(userId);
+            const newMe = updateUserInfo(meId, {
+                friendIds: me.friendIds.concat(userId)
+            });
+            updateUserInfo(userId, { friendIds: friend.friendIds.concat(meId) });
+
+            return newMe;
+        },
+        addPost: (parent, { input }, context) => {
+            const { title, body } = input;
+            return addPost({ authorId: meId, title, body });
+        },
+        likePost: (parent, { postId }, context) => {
+            const post = findPostByPostId(postId);
+
+            if (!post) throw new Error(`Post ${postId} Not Exists`);
+
+            if (!post.likeGiverIds.includes(postId)) {
+                return updatePost(postId, {
+                    likeGiverIds: post.likeGiverIds.concat(meId)
+                });
+            }
+
+            return updatePost(postId, {
+                likeGiverIds: post.likeGiverIds.filter(id => id === meId)
+            });
+        }
     }
 };
 
