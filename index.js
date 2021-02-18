@@ -1,4 +1,4 @@
-const { ApolloServer, gql } = require('apollo-server');
+const { ApolloServer, gql, ForbiddenError } = require('apollo-server');
 // 引入外部套件
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
@@ -168,14 +168,19 @@ const createToken = ({ id, email, name }) => jwt.sign({ id, email, name }, SECRE
     expiresIn: '1d'
 });
 
+const isAuthenticated = resolverFunc => (parent, args, context) => {
+    if (!context.me) throw new ForbiddenError('Not logged in.');
+    return resolverFunc.apply(null, [parent, args, context]);
+};
+
 // resolver
 const resolvers = {
     Query: {
         hello: () => "world",
-        me: (root, args, { me }) => {
+        me: isAuthenticated((root, args, { me }) => {
             if (!me) throw new Error('Please Log In First');
             return findUserByUserId(me.id)
-        },
+        }),
         users: () => users,
         user: (root, { name }, context) => findUserByName(name),
         posts: () => posts,
@@ -190,7 +195,7 @@ const resolvers = {
         likeGivers: (parent, args, context) => filterUsersByUserIds(parent.likeGiverIds)
     },
     Mutation: {
-        updateMyInfo: (parent, { input }, { me }) => {
+        updateMyInfo: isAuthenticated((parent, { input }, { me }) => {
             if (!me) throw new Error('Please Log In First');
             // 過濾空值
             const data = ["name", "age"].reduce(
@@ -199,8 +204,8 @@ const resolvers = {
             );
 
             return updateUserInfo(me.id, data);
-        },
-        addFriend: (parent, { userId }, { me: { id: meId } }) => {
+        }),
+        addFriend: isAuthenticated((parent, { userId }, { me: { id: meId } }) => {
             if (!me) throw new Error('Please Log In First');
             const me = findUserByUserId(meId);
             if (me.friendIds.include(userId))
@@ -213,13 +218,13 @@ const resolvers = {
             updateUserInfo(userId, { friendIds: friend.friendIds.concat(meId) });
 
             return newMe;
-        },
-        addPost: (parent, { input }, { me }) => {
+        }),
+        addPost: isAuthenticated((parent, { input }, { me }) => {
             if (!me) throw new Error('Please Log In First');
             const { title, body } = input;
             return addPost({ authorId: me.id, title, body });
-        },
-        likePost: (parent, { postId }, { me }) => {
+        }),
+        likePost: isAuthenticated((parent, { postId }, { me }) => {
             if (!me) throw new Error('Please Log In First');
 
             const post = findPostByPostId(postId);
@@ -235,7 +240,7 @@ const resolvers = {
             return updatePost(postId, {
                 likeGiverIds: post.likeGiverIds.filter(id => id === me.id)
             });
-        },
+        }),
         signUp: async (root, { name, email, password }, context) => {
             // 1. 檢查不能有重複註冊 email
             const isUserEmailDuplicate = users.some(user => user.email === email);
