@@ -1,4 +1,12 @@
 const { ApolloServer, gql } = require('apollo-server');
+// 引入外部套件
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
+// 定義 bcrypt 加密所需 saltRounds 次數
+const SALT_ROUNDS = 2;
+// 定義 jwt 所需 secret (可隨便打)
+const SECRET = 'just_a_random_secret';
+
 const typeDefs = gql`
     """        
     使用者
@@ -66,6 +74,8 @@ const typeDefs = gql`
         addFriend(userId: ID!): User
         addPost(input: AddPostInput!): Post
         likePost(postId: ID!): Post
+        "註冊。 email 與 passwrod 必填"
+        signUp(name: String, email: String!, password: String!): User
     }
 `;
 
@@ -137,6 +147,17 @@ const addPost = ({ authorId, title, body }) =>
 
 const updatePost = (postId, data) => Object.assign(findPostByPostId(postId), data);
 
+const hash = text => bcrypt.hash(text, SALT_ROUNDS);
+
+const addUser = ({ name, email, password }) => (
+    users[users.length] = {
+        id: users[users.length - 1].id + 1,
+        name,
+        email,
+        password
+    }
+);
+
 // resolver
 const resolvers = {
     Query: {
@@ -196,7 +217,17 @@ const resolvers = {
             return updatePost(postId, {
                 likeGiverIds: post.likeGiverIds.filter(id => id === meId)
             });
-        }
+        },
+        signUp: async (root, { name, email, password }, context) => {
+            // 1. 檢查不能有重複註冊 email
+            const isUserEmailDuplicate = users.some(user => user.email === email);
+            if (isUserEmailDuplicate) throw new Error('User Email Duplicate');
+
+            // 2. 將 passwrod 加密再存進去。非常重要 !!
+            const hashedPassword = await hash(password, SALT_ROUNDS);
+            // 3. 建立新 user
+            return addUser({ name, email, password: hashedPassword });
+        },
     }
 };
 
