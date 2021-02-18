@@ -172,7 +172,10 @@ const createToken = ({ id, email, name }) => jwt.sign({ id, email, name }, SECRE
 const resolvers = {
     Query: {
         hello: () => "world",
-        me: () => findUserByUserId(meId),
+        me: (root, args, { me }) => {
+            if (!me) throw new Error('Please Log In First');
+            return findUserByUserId(me.id)
+        },
         users: () => users,
         user: (root, { name }, context) => findUserByName(name),
         posts: () => posts,
@@ -187,16 +190,18 @@ const resolvers = {
         likeGivers: (parent, args, context) => filterUsersByUserIds(parent.likeGiverIds)
     },
     Mutation: {
-        updateMyInfo: (parent, { input }, context) => {
+        updateMyInfo: (parent, { input }, { me }) => {
+            if (!me) throw new Error('Please Log In First');
             // 過濾空值
             const data = ["name", "age"].reduce(
                 (obj, key) => (input[key] ? { ...obj, [key]: input[key] } : obj),
                 {}
             );
 
-            return updateUserInfo(meId, data);
+            return updateUserInfo(me.id, data);
         },
-        addFriend: (parent, { userId }, context) => {
+        addFriend: (parent, { userId }, { me: { id: meId } }) => {
+            if (!me) throw new Error('Please Log In First');
             const me = findUserByUserId(meId);
             if (me.friendIds.include(userId))
                 throw new Error(`User ${userId} Already Friend.`);
@@ -209,23 +214,26 @@ const resolvers = {
 
             return newMe;
         },
-        addPost: (parent, { input }, context) => {
+        addPost: (parent, { input }, { me }) => {
+            if (!me) throw new Error('Please Log In First');
             const { title, body } = input;
-            return addPost({ authorId: meId, title, body });
+            return addPost({ authorId: me.id, title, body });
         },
-        likePost: (parent, { postId }, context) => {
+        likePost: (parent, { postId }, { me }) => {
+            if (!me) throw new Error('Please Log In First');
+
             const post = findPostByPostId(postId);
 
             if (!post) throw new Error(`Post ${postId} Not Exists`);
 
             if (!post.likeGiverIds.includes(postId)) {
                 return updatePost(postId, {
-                    likeGiverIds: post.likeGiverIds.concat(meId)
+                    likeGiverIds: post.likeGiverIds.concat(me.id)
                 });
             }
 
             return updatePost(postId, {
-                likeGiverIds: post.likeGiverIds.filter(id => id === meId)
+                likeGiverIds: post.likeGiverIds.filter(id => id === me.id)
             });
         },
         signUp: async (root, { name, email, password }, context) => {
@@ -255,7 +263,23 @@ const resolvers = {
 
 const server = new ApolloServer({
     typeDefs,
-    resolvers
+    resolvers,
+    context: async ({ req }) => {
+        // 1. 取出
+        const token = req.headers['x-token'];
+        if (token) {
+            try {
+                // 2. 檢查 token + 取得解析出的資料
+                const me = await jwt.verify(token, SECRET);
+                // 3. 放進 context
+                return { me };
+            } catch (e) {
+                throw new Error('Your session has expired. Please sign in again.')
+            }
+        }
+        // 如果沒有 token 就回傳空的 context 出去
+        return {};
+    }
 });
 
 server.listen().then(({ url }) => {
