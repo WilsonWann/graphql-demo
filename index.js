@@ -82,6 +82,7 @@ const typeDefs = gql`
         signUp(name: String, email: String!, password: String!): User
         "登入"
         login(email: String!, password: String!): Token
+        deletePost(postId: ID!): Post
     }
 `;
 
@@ -173,6 +174,16 @@ const isAuthenticated = resolverFunc => (parent, args, context) => {
     return resolverFunc.apply(null, [parent, args, context]);
 };
 
+const deletePost = (postId) => posts.splice(posts.findIndex(post => post.id === postId), 1)[0];
+
+const isPostAuthor = resolverFunc => (parent, args, context) => {
+    const { postId } = args;
+    const { me } = context;
+    const isAuthor = findPostByPostId(postId).authorId === me.id;
+    if (!isAuthor) throw new ForbiddenError('Only Author Can Delete this Post');
+    return resolverFunc.applyFunc(parent, args, context);
+}
+
 // resolver
 const resolvers = {
     Query: {
@@ -262,7 +273,9 @@ const resolvers = {
 
             // 3. 成功則回傳 token
             return { token: await createToken(user) };
-        }
+        },
+        deletePost: isAuthenticated(isPostAuthor((root, { postId }, { me }) => deletePost(postId))
+        ),
     },
 };
 
