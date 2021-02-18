@@ -1,11 +1,14 @@
+const { userModel, postModel } = require('./models');
+
+require('dotnet').config();
 const { ApolloServer, gql, ForbiddenError } = require('apollo-server');
 // 引入外部套件
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 // 定義 bcrypt 加密所需 saltRounds 次數
-const SALT_ROUNDS = 2;
+const SALT_ROUNDS = +process.env.SALT_ROUNDS;
 // 定義 jwt 所需 secret (可隨便打)
-const SECRET = 'just_a_random_secret';
+const SECRET = process.env.SECRET;
 
 const typeDefs = gql`
     """        
@@ -86,86 +89,9 @@ const typeDefs = gql`
     }
 `;
 
-// Mock Data & Field Resolver
-const meId = 1;
-const users = [
-    {
-        id: 1,
-        email: 'fong@test.com',
-        password: '$2b$04$wcwaquqi5ea1Ho0aKwkZ0e51/RUkg6SGxaumo8fxzILDmcrv4OBIO', // 123456
-        name: 'Fong',
-        age: 23,
-        friendIds: [2, 3]
-    },
-    {
-        id: 2,
-        email: 'kevin@test.com',
-        passwrod: '$2b$04$uy73IdY9HVZrIENuLwZ3k./0azDvlChLyY1ht/73N4YfEZntgChbe', // 123456
-        name: 'Kevin',
-        age: 40,
-        friendIds: [1]
-    },
-    {
-        id: 3,
-        email: 'mary@test.com',
-        password: '$2b$04$UmERaT7uP4hRqmlheiRHbOwGEhskNw05GHYucU73JRf8LgWaqWpTy', // 123456
-        name: 'Mary',
-        age: 18,
-        friendIds: [1]
-    }
-];
+const hash = (text, saltRounds) => bcrypt.hash(text, saltRounds);
 
-const posts = [
-    {
-        id: 1,
-        authorId: 1,
-        title: 'Hello World',
-        body: 'This is my first post',
-        likeGiverIds: [1, 2],
-        createdAt: '2018-10-22T01:40:14.941Z'
-    },
-    {
-        id: 2,
-        authorId: 2,
-        title: 'Nice Day',
-        body: 'Hello My Friend!',
-        likeGiverIds: [1],
-        createdAt: '2018-10-24T01:40:14.941Z'
-    }
-];
-
-// helper functions
-const filterPostsByUserId = userId => posts.filter(post => userId === post.authorId);
-const filterUsersByUserIds = userIds => users.filter(user => userIds.includes(user.id));
-const findUserByUserId = userId => users.find(user => user.id === +userId);
-const findUserByName = name => users.filter(user => user.name === name);
-const findPostByPostId = postId => posts.find(post => post.id === +postId);
-const updateUserInfo = (userId, data) => Object.assign(findUserByUserId(userId), data);
-
-const addPost = ({ authorId, title, body }) =>
-(posts[posts.length] = {
-    id: posts[posts.length - 1].id + 1,
-    authorId,
-    title,
-    body,
-    likeGiverIds: [],
-    createdAt: new Date().toISOString()
-});
-
-const updatePost = (postId, data) => Object.assign(findPostByPostId(postId), data);
-
-const hash = text => bcrypt.hash(text, SALT_ROUNDS);
-
-const addUser = ({ name, email, password }) => (
-    users[users.length] = {
-        id: users[users.length - 1].id + 1,
-        name,
-        email,
-        password
-    }
-);
-
-const createToken = ({ id, email, name }) => jwt.sign({ id, email, name }, SECRET, {
+const createToken = ({ id, email, name }, secret) => jwt.sign({ id, email, name }, secret, {
     expiresIn: '1d'
 });
 
@@ -174,12 +100,11 @@ const isAuthenticated = resolverFunc => (parent, args, context) => {
     return resolverFunc.apply(null, [parent, args, context]);
 };
 
-const deletePost = (postId) => posts.splice(posts.findIndex(post => post.id === postId), 1)[0];
 
 const isPostAuthor = resolverFunc => (parent, args, context) => {
     const { postId } = args;
-    const { me } = context;
-    const isAuthor = findPostByPostId(postId).authorId === me.id;
+    const { me, postModel } = context;
+    const isAuthor = postModel.findPostByPostId(postId).authorId === me.id;
     if (!isAuthor) throw new ForbiddenError('Only Author Can Delete this Post');
     return resolverFunc.applyFunc(parent, args, context);
 }
@@ -188,25 +113,25 @@ const isPostAuthor = resolverFunc => (parent, args, context) => {
 const resolvers = {
     Query: {
         hello: () => "world",
-        me: isAuthenticated((root, args, { me }) => {
+        me: isAuthenticated((root, args, { me, userModel }) => {
             if (!me) throw new Error('Please Log In First');
-            return findUserByUserId(me.id)
+            return userModel.findUserByUserId(me.id)
         }),
-        users: () => users,
-        user: (root, { name }, context) => findUserByName(name),
-        posts: () => posts,
-        post: (root, { id }, context) => findPostByPostId(id)
+        users: (root, args, { userModel }) => users.getAllUsers(),
+        user: (root, { name }, { userModel }) => userModel.findUserByName(name),
+        posts: (root, args, { postModel }) => postModel.getAllPosts(),
+        post: (root, { id }, { postModel }) => postModel.findPostByPostId(id)
     },
     User: {
-        posts: (parent, args, context) => filterPostsByUserId(parent.id),
-        friends: (parent, args, context) => filterUsersByUserIds(parent.friendIds || [])
+        posts: (parent, args, { postModel }) => postModel.filterPostsByUserId(parent.id),
+        friends: (parent, args, { userModel }) => userModel.filterUsersByUserIds(parent.friendIds || [])
     },
     Post: {
-        author: (parent, args, context) => findUserByUserId(parent.authorId),
-        likeGivers: (parent, args, context) => filterUsersByUserIds(parent.likeGiverIds)
+        author: (parent, args, { userModel }) => userModel.findUserByUserId(parent.authorId),
+        likeGivers: (parent, args, { userModel }) => userModel.filterUsersByUserIds(parent.likeGiverIds)
     },
     Mutation: {
-        updateMyInfo: isAuthenticated((parent, { input }, { me }) => {
+        updateMyInfo: isAuthenticated((parent, { input }, { me, userModel }) => {
             if (!me) throw new Error('Please Log In First');
             // 過濾空值
             const data = ["name", "age"].reduce(
@@ -214,55 +139,55 @@ const resolvers = {
                 {}
             );
 
-            return updateUserInfo(me.id, data);
+            return userModelupdateUserInfo(me.id, data);
         }),
-        addFriend: isAuthenticated((parent, { userId }, { me: { id: meId } }) => {
+        addFriend: isAuthenticated((parent, { userId }, { me: { id: meId }, userModel }) => {
             if (!me) throw new Error('Please Log In First');
-            const me = findUserByUserId(meId);
+            const me = userModel.findUserByUserId(meId);
             if (me.friendIds.include(userId))
                 throw new Error(`User ${userId} Already Friend.`);
 
-            const friend = findUserByUserId(userId);
+            const friend = userModel.findUserByUserId(userId);
             const newMe = updateUserInfo(meId, {
                 friendIds: me.friendIds.concat(userId)
             });
-            updateUserInfo(userId, { friendIds: friend.friendIds.concat(meId) });
+            userModel.updateUserInfo(userId, { friendIds: friend.friendIds.concat(meId) });
 
             return newMe;
         }),
-        addPost: isAuthenticated((parent, { input }, { me }) => {
+        addPost: isAuthenticated((parent, { input }, { me, postModel }) => {
             if (!me) throw new Error('Please Log In First');
             const { title, body } = input;
-            return addPost({ authorId: me.id, title, body });
+            return postModel.addPost({ authorId: me.id, title, body });
         }),
-        likePost: isAuthenticated((parent, { postId }, { me }) => {
+        likePost: isAuthenticated((parent, { postId }, { me, postModel }) => {
             if (!me) throw new Error('Please Log In First');
 
-            const post = findPostByPostId(postId);
+            const post = postModel.findPostByPostId(postId);
 
             if (!post) throw new Error(`Post ${postId} Not Exists`);
 
             if (!post.likeGiverIds.includes(postId)) {
-                return updatePost(postId, {
+                return postModel.updatePost(postId, {
                     likeGiverIds: post.likeGiverIds.concat(me.id)
                 });
             }
 
-            return updatePost(postId, {
+            return postModel.updatePost(postId, {
                 likeGiverIds: post.likeGiverIds.filter(id => id === me.id)
             });
         }),
-        signUp: async (root, { name, email, password }, context) => {
+        signUp: async (root, { name, email, password }, { saltRounds, userModel }) => {
             // 1. 檢查不能有重複註冊 email
             const isUserEmailDuplicate = users.some(user => user.email === email);
             if (isUserEmailDuplicate) throw new Error('User Email Duplicate');
 
             // 2. 將 passwrod 加密再存進去。非常重要 !!
-            const hashedPassword = await hash(password, SALT_ROUNDS);
+            const hashedPassword = await hash(password, saltRounds);
             // 3. 建立新 user
-            return addUser({ name, email, password: hashedPassword });
+            return userModel.addUser({ name, email, password: hashedPassword });
         },
-        login: async (root, { email, password }, context) => {
+        login: async (root, { email, password }, { secret }) => {
             // 1. 透過 email 找到相對應的 user
             const user = users.find(user => user.email === email);
             if (!user) throw new Error('Email Account Not Exists');
@@ -272,9 +197,9 @@ const resolvers = {
             if (!passwordIsValid) throw new Error('Wrong Password');
 
             // 3. 成功則回傳 token
-            return { token: await createToken(user) };
+            return { token: await createToken(user, secret) };
         },
-        deletePost: isAuthenticated(isPostAuthor((root, { postId }, { me }) => deletePost(postId))
+        deletePost: isAuthenticated(isPostAuthor((root, { postId }, { me, postModel }) => postModel.deletePost(postId))
         ),
     },
 };
@@ -283,20 +208,23 @@ const server = new ApolloServer({
     typeDefs,
     resolvers,
     context: async ({ req }) => {
-        // 1. 取出
+        const context = {
+            secret: SECRET,
+            saltRounds: SALT_ROUNDS,
+            userModel,
+            postModel
+        };
         const token = req.headers['x-token'];
         if (token) {
             try {
-                // 2. 檢查 token + 取得解析出的資料
                 const me = await jwt.verify(token, SECRET);
-                // 3. 放進 context
                 return { me };
             } catch (e) {
                 throw new Error('Your session has expired. Please sign in again.')
             }
         }
         // 如果沒有 token 就回傳空的 context 出去
-        return {};
+        return context;
     }
 });
 
