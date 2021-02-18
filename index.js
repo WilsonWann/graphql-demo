@@ -69,6 +69,10 @@ const typeDefs = gql`
         body: String
     }
 
+    type Token {
+        token: String!
+    }
+
     type Mutation {
         updateMyInfo(input: UpdateMyInfoInput!): User
         addFriend(userId: ID!): User
@@ -76,6 +80,8 @@ const typeDefs = gql`
         likePost(postId: ID!): Post
         "註冊。 email 與 passwrod 必填"
         signUp(name: String, email: String!, password: String!): User
+        "登入"
+        login(email: String!, password: String!): Token
     }
 `;
 
@@ -131,7 +137,7 @@ const posts = [
 const filterPostsByUserId = userId => posts.filter(post => userId === post.authorId);
 const filterUsersByUserIds = userIds => users.filter(user => userIds.includes(user.id));
 const findUserByUserId = userId => users.find(user => user.id === +userId);
-const findUserByName = name => users.find(user => user.name === name);
+const findUserByName = name => users.filter(user => user.name === name);
 const findPostByPostId = postId => posts.find(post => post.id === +postId);
 const updateUserInfo = (userId, data) => Object.assign(findUserByUserId(userId), data);
 
@@ -157,6 +163,10 @@ const addUser = ({ name, email, password }) => (
         password
     }
 );
+
+const createToken = ({ id, email, name }) => jwt.sign({ id, email, name }, SECRET, {
+    expiresIn: '1d'
+});
 
 // resolver
 const resolvers = {
@@ -228,7 +238,19 @@ const resolvers = {
             // 3. 建立新 user
             return addUser({ name, email, password: hashedPassword });
         },
-    }
+        login: async (root, { email, password }, context) => {
+            // 1. 透過 email 找到相對應的 user
+            const user = users.find(user => user.email === email);
+            if (!user) throw new Error('Email Account Not Exists');
+
+            // 2. 將傳進來的 password 與資料庫存的 user.password 做比對
+            const passwordIsValid = await bcrypt.compare(password, user.password);
+            if (!passwordIsValid) throw new Error('Wrong Password');
+
+            // 3. 成功則回傳 token
+            return { token: await createToken(user) };
+        }
+    },
 };
 
 const server = new ApolloServer({
