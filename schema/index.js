@@ -66,5 +66,6 @@ const myResolvers = {
 module.exports = {
     typeDefs: [typeDefs, userSchema.typeDefs, postSchema.typeDefs],
     resolvers: [myResolvers, userSchema.resolvers, postSchema.resolvers],
-    UpperCaseDirective: userSchema.UpperCaseDirective
+    UpperCaseDirective: userSchema.UpperCaseDirective,
+    IsAuthenticatedDirective: userSchema.IsAuthenticatedDirective,
 };

@@ -2,7 +2,7 @@
 const { ApolloServer } = require('apollo-server');
 const jwt = require('jsonwebtoken');
 
-const { typeDefs, resolvers, UpperCaseDirective } = require('./schema')
+const { typeDefs, resolvers, UpperCaseDirective, IsAuthenticatedDirective } = require('./schema')
 const { userModel, postModel } = require('./models');
 
 require('dotenv').config();
@@ -16,7 +16,8 @@ const server = new ApolloServer({
     resolvers,
     // 4. 將 schema 的 directive 與實作連接並傳進 ApolloServer。
     schemaDirectives: {
-        upper: UpperCaseDirective
+        upper: UpperCaseDirective,
+        isAuthenticated: IsAuthenticatedDirective
     },
     context: async ({ req }) => {
         const context = {

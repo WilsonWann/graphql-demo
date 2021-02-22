@@ -23,9 +23,24 @@ class UpperCaseDirective extends SchemaDirectiveVisitor {
     }
 }
 
+class IsAuthenticatedDirective extends SchemaDirectiveVisitor {
+    visitFieldDefinition(field) {
+        const { resolve = defaultFieldResolver } = field;
+        field.resolve = async function (...args) {
+            const context = args[2];
+            // 檢查有沒有 context.me
+            if (!context.me) throw new Error('Not logged in!');
+
+            // 確定有 context.me 後才進入 Resolve Function
+            const result = await resolve.apply(this.args);
+            return result;
+        }
+    }
+}
 // 3. 定義新的 Directive
 const typeDefs = gql`
     directive @upper on FIELD_DEFINITION
+    directive @isAuthenticated on FIELD_DEFINITION
 
     """
     高度單位
@@ -75,7 +90,7 @@ const typeDefs = gql`
     extend type Query {
         hello: String @upper
         "取得目前使用者"
-        me: User
+        me: User @isAuthenticated
         "取得所有使用者"
         users: [User]
         "依照名字取得特定使用者"
@@ -118,10 +133,11 @@ const resolvers = {
         hello: (root, args, context) => {
             return "Hello World!";
         },
-        me: isAuthenticated((root, args, { me, userModel }) => {
-            if (!me) throw new Error('Please Log In First');
-            return userModel.findUserByUserId(me.id)
-        }),
+        // me: isAuthenticated((root, args, { me, userModel }) => {
+        //     if (!me) throw new Error('Please Log In First');
+        //     return userModel.findUserByUserId(me.id)
+        // }),
+        me: (root, args, { me, userModel }) => userModel.findUserByUserId(me.id),
         users: (root, args, { userModel }) => userModel.getAllUsers(),
         user: (root, { name }, { userModel }) => userModel.findUserByName(name),
     },
@@ -201,5 +217,6 @@ const resolvers = {
 module.exports = {
     typeDefs,
     resolvers,
-    UpperCaseDirective
+    UpperCaseDirective,
+    IsAuthenticatedDirective
 };
