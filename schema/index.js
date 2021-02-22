@@ -17,8 +17,6 @@ const typeDefs = gql`
     scalar DateTime
     
     type Query {
-        "測試用 Hello World"
-        hello: String
         # 獲取現在時間
         now: DateTime
         # 詢問日期是否為週五... TGIF!!
@@ -57,7 +55,6 @@ const myResolvers = {
         }
     }),
     Query: {
-        hello: () => 'world',
         now: () => new Date(),
         isFriday: (root, { date }) => date.getDay() === 5
     },
@@ -68,5 +65,6 @@ const myResolvers = {
 
 module.exports = {
     typeDefs: [typeDefs, userSchema.typeDefs, postSchema.typeDefs],
-    resolvers: [myResolvers, userSchema.resolvers, postSchema.resolvers]
+    resolvers: [myResolvers, userSchema.resolvers, postSchema.resolvers],
+    UpperCaseDirective: userSchema.UpperCaseDirective
 };

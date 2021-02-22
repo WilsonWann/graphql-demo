@@ -2,7 +2,7 @@
 const { ApolloServer } = require('apollo-server');
 const jwt = require('jsonwebtoken');
 
-const { typeDefs, resolvers } = require('./schema')
+const { typeDefs, resolvers, UpperCaseDirective } = require('./schema')
 const { userModel, postModel } = require('./models');
 
 require('dotenv').config();
@@ -10,9 +10,14 @@ require('dotenv').config();
 const SALT_ROUNDS = +process.env.SALT_ROUNDS;
 const SECRET = process.env.SECRET;
 
+// 4. Add directive to the ApolloServer constructor
 const server = new ApolloServer({
     typeDefs,
     resolvers,
+    // 4. 將 schema 的 directive 與實作連接並傳進 ApolloServer。
+    schemaDirectives: {
+        upper: UpperCaseDirective
+    },
     context: async ({ req }) => {
         const context = {
             secret: SECRET,

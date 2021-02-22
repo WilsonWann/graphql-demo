@@ -1,10 +1,33 @@
-const { gql, ForbiddenError, AuthenticationError } = require('apollo-server')
+// 1. 引入外部套件
+const { gql, ForbiddenError, AuthenticationError, SchemaDirectiveVisitor } = require('apollo-server')
+const { defaultFieldResolver } = require('graphql');
 const bcrypt = require('bcrypt')
 const jwt = require('jsonwebtoken')
 
+// 2. Directive 實作
+class UpperCaseDirective extends SchemaDirectiveVisitor {
+    // 2-1. ovveride field Definition 的實作
+    visitFieldDefinition(field) {
+        const { resolve = defaultFieldResolver } = field;
+        // 2-2. 更改 field 的 resolve function
+        field.resolve = async function (...args) {
+            // 2-3. 取得原先 field resolver 的計算結果 (因為 field resolver 傳回來的有可能是 promise 故使用 await)
+            const result = await resolve.apply(this, args);
+            // 2-4. 將得到的結果再做預期的計算 (toUpperCase)
+            if (typeof result === 'string') {
+                return result.toUpperCase();
+            }
+            // 2-5. 回傳最終值 (給前端)
+            return result;
+        }
+    }
+}
 
+// 3. 定義新的 Directive
 const typeDefs = gql`
-"""
+    directive @upper on FIELD_DEFINITION
+
+    """
     高度單位
     """
     enum HeightUnit {
@@ -50,6 +73,7 @@ const typeDefs = gql`
     }
 
     extend type Query {
+        hello: String @upper
         "取得目前使用者"
         me: User
         "取得所有使用者"
@@ -91,7 +115,9 @@ const isAuthenticated = resolverFunc => (parent, args, context) => {
 
 const resolvers = {
     Query: {
-        hello: () => "world",
+        hello: (root, args, context) => {
+            return "Hello World!";
+        },
         me: isAuthenticated((root, args, { me, userModel }) => {
             if (!me) throw new Error('Please Log In First');
             return userModel.findUserByUserId(me.id)
@@ -174,5 +200,6 @@ const resolvers = {
 
 module.exports = {
     typeDefs,
-    resolvers
+    resolvers,
+    UpperCaseDirective
 };
