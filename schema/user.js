@@ -2,7 +2,31 @@ const { gql, ForbiddenError, AuthenticationError } = require('apollo-server')
 const bcrypt = require('bcrypt')
 const jwt = require('jsonwebtoken')
 
+
 const typeDefs = gql`
+"""
+    高度單位
+    """
+    enum HeightUnit {
+        "公尺"
+        METRE
+        "公分"
+        CENTIMETRE
+        "英尺 (1 英尺 = 30.48 公分)"
+        FOOT
+    }
+
+    """
+    重量單位
+    """
+    enum WeightUnit {
+        "公斤"
+        KILOGRAM
+        "公克"
+        GRAM
+        "磅 (1 磅 = 0.45359237 公斤)"
+        POUND
+    }
     """        
     使用者
     """
@@ -19,6 +43,10 @@ const typeDefs = gql`
         friends: [User]
         "貼文"
         posts: [Post]
+        "身高 (預設為 CENTIMETRE)"
+        height(unit: HeightUnit = CENTIMETRE): Float
+        "體重 (預設為 KILOGRAM)"
+        weight(unit: WeightUnit = KILOGRAM): Float @deprecated (reason: "It's secret")
     }
 
     extend type Query {
@@ -73,7 +101,26 @@ const resolvers = {
     },
     User: {
         posts: (parent, args, { postModel }) => postModel.filterPostsByUserId(parent.id),
-        friends: (parent, args, { userModel }) => userModel.filterUsersByUserIds(parent.friendIds || [])
+        friends: (parent, args, { userModel }) => userModel.filterUsersByUserIds(parent.friendIds || []),
+        // 對應到 Schema 的 User.height
+        height: (parent, args) => {
+            const { unit } = args;
+            // 可注意到 Enum type 進到 javascript 就變成了 String 格式
+            // 另外支援 default 值 CENTIMETRE
+            if (!unit || unit === "CENTIMETRE") return parent.height;
+            else if (unit === "METRE") return parent.height / 100;
+            else if (unit === "FOOT") return parent.height / 30.48;
+            throw new Error(`Height unit "${unit}" not supported.`);
+        },
+        // 對應到 Schema 的 User.weight
+        weight: (parent, args, context) => {
+            const { unit } = args;
+            // 支援 default 值 KILOGRAM
+            if (!unit || unit === "KILOGRAM") return parent.weight;
+            else if (unit === "GRAM") return parent.weight * 100;
+            else if (unit === "POUND") return parent.weight / 0.45359237;
+            throw new Error(`Weight unit "${unit}" not supported.`);
+        }
     },
     Mutation: {
         updateMyInfo: isAuthenticated((parent, { input }, { me, userModel }) => {

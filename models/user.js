@@ -5,7 +5,9 @@ const users = [
         password: '$2b$04$wcwaquqi5ea1Ho0aKwkZ0e51/RUkg6SGxaumo8fxzILDmcrv4OBIO', // 123456
         name: 'Fong',
         age: 23,
-        friendIds: [2, 3]
+        friendIds: [2, 3],
+        height: 175,
+        weight: 60
     },
     {
         id: 2,
@@ -13,7 +15,9 @@ const users = [
         passwrod: '$2b$04$uy73IdY9HVZrIENuLwZ3k./0azDvlChLyY1ht/73N4YfEZntgChbe', // 123456
         name: 'Kevin',
         age: 40,
-        friendIds: [1]
+        friendIds: [1],
+        height: 160,
+        weight: 40
     },
     {
         id: 3,
@@ -21,7 +25,9 @@ const users = [
         password: '$2b$04$UmERaT7uP4hRqmlheiRHbOwGEhskNw05GHYucU73JRf8LgWaqWpTy', // 123456
         name: 'Mary',
         age: 18,
-        friendIds: [1]
+        friendIds: [1],
+        height: 185,
+        weight: 100
     }
 ];
 
