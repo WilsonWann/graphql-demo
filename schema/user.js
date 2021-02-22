@@ -39,7 +39,7 @@ const typeDefs = gql`
         token: String!
     }
 
-    type Mutation {
+    extend type Mutation {
         updateMyInfo(input: UpdateMyInfoInput!): User
         addFriend(userId: ID!): User
         "註冊。 email 與 passwrod 必填"
@@ -68,7 +68,7 @@ const resolvers = {
             if (!me) throw new Error('Please Log In First');
             return userModel.findUserByUserId(me.id)
         }),
-        users: (root, args, { userModel }) => users.getAllUsers(),
+        users: (root, args, { userModel }) => userModel.getAllUsers(),
         user: (root, { name }, { userModel }) => userModel.findUserByName(name),
     },
     User: {

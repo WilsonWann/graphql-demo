@@ -31,7 +31,7 @@ const typeDefs = gql`
         body: String
     }
 
-    type Mutation {
+    extend type Mutation {
         addPost(input: AddPostInput!): Post
         likePost(postId: ID!): Post
         deletePost(postId: ID!): Post

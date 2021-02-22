@@ -17,6 +17,8 @@ const posts = [
     }
 ];
 
+const getAllPosts = () => posts;
+
 const findPostByPostId = postId => posts.find(post => post.id === +postId);
 
 const filterPostsByUserId = userId => posts.filter(post => userId === post.authorId);

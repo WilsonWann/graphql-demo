@@ -5,7 +5,7 @@ const jwt = require('jsonwebtoken');
 const { typeDefs, resolvers } = require('./schema')
 const { userModel, postModel } = require('./models');
 
-require('dotnet').config();
+require('dotenv').config();
 
 const SALT_ROUNDS = +process.env.SALT_ROUNDS;
 const SECRET = process.env.SECRET;

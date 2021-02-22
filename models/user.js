@@ -25,11 +25,13 @@ const users = [
     }
 ];
 
+const getAllUsers = () => users;
+
 const findUserByUserId = userId => users.find(user => user.id === +userId);
 
 const filterUsersByUserIds = userIds => users.filter(user => userIds.includes(user.id));
 
-const findUserByName = name => users.filter(user => user.name === name);
+const findUserByName = name => users.find(user => user.name === name);
 
 const updateUserInfo = (userId, data) => Object.assign(findUserByUserId(userId), data);
 
