@@ -14,6 +14,7 @@ const SECRET = process.env.SECRET;
 const server = new ApolloServer({
     typeDefs,
     resolvers,
+    tracing: true,
     // 4. 將 schema 的 directive 與實作連接並傳進 ApolloServer。
     schemaDirectives: {
         upper: UpperCaseDirective,
