@@ -2,6 +2,7 @@
 const { gql } = require('apollo-server')
 const { GraphQLScalarType } = require('graphql');
 const { Kind } = require('graphql/language');
+const { DateTime, resolvers } = require('graphql-scalars');
 
 const userSchema = require('./user')
 const postSchema = require('./post')
@@ -13,13 +14,15 @@ const typeDefs = gql`
     """
     scalar Date
 
+    scalar DateTime
+    
     type Query {
         "測試用 Hello World"
         hello: String
         # 獲取現在時間
-        now: Date
+        now: DateTime
         # 詢問日期是否為週五... TGIF!!
-        isFriday(date: Date): Boolean
+        isFriday(date: DateTime): Boolean
     }
 
     type Mutation {
@@ -28,7 +31,8 @@ const typeDefs = gql`
 `
 
 // Resolvers
-const resolvers = {
+const myResolvers = {
+    DateTime: resolvers.DateTime,
     Date: new GraphQLScalarType({
         name: 'Date',
         description: 'Date custom scalar type',
@@ -64,5 +68,5 @@ const resolvers = {
 
 module.exports = {
     typeDefs: [typeDefs, userSchema.typeDefs, postSchema.typeDefs],
-    resolvers: [resolvers, userSchema.resolvers, postSchema.resolvers]
+    resolvers: [myResolvers, userSchema.resolvers, postSchema.resolvers]
 };
